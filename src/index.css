@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  /* Custom Colors */
+  --color-primary: #88a86b;
+  --color-soft-pink: #fce4ec;
+  --color-sky-blue: #e3f2fd;
+  --color-background-light: #fdfdfb;
+  --color-background-dark: #191c16;
+
+  /* Custom Border Radius */
+  --radius: 1.5rem;
+  --radius-lg: 2rem;
+  --radius-xl: 3rem;
+  --radius-full: 9999px;
+
+  /* Font Family */
+  --font-family: "PingFang SC", "Lantinghei SC", "Microsoft YaHei", sans-serif;
+}
+
+/* Material Symbols Icons */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.fill-1 {
+  font-variation-settings: 'FILL' 1;
+}
+
+/* Doodle Background */
+.doodle-bg {
+  background-color: #fdfdfb;
+  background-image:
+    radial-gradient(#88a86b22 1px, transparent 0),
+    url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10q5 0 5 5t-5 5-5-5 5-5M80 20q3 0 3 3t-3 3-3-3 3-3M30 70q8 0 8 8t-8 8-8-8 8-8' fill='none' stroke='%2388a86b15' stroke-width='1'/%3E%3Ccircle cx='50' cy='50' r='2' fill='%2388a86b10'/%3E%3Cpath d='M70 80l5 5m-5 0l5-5' stroke='%2388a86b20'/%3E%3C/svg%3E");
+  background-size: 40px 40px, 200px 200px;
+}
+
+/* Polaroid Card Effect */
+.polaroid {
+  box-shadow: 0 10px 20px rgba(0,0,0,0.03);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.polaroid:hover {
+  transform: rotate(-1.5deg) scale(1.03);
+  z-index: 10;
+}
+
+/* Washi Tape Effect */
+.washi-tape {
+  background: rgba(136, 168, 107, 0.4);
+  mask-image: url("data:image/svg+xml,%3Csvg width='100' height='20' viewBox='0 0 100 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0 L10 2 L20 0 L30 3 L40 0 L50 2 L60 0 L70 3 L80 0 L90 2 L100 0 L100 20 L90 18 L80 20 L70 17 L60 20 L50 18 L40 20 L30 17 L20 20 L10 18 L0 20 Z' fill='black'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg width='100' height='20' viewBox='0 0 100 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0 L10 2 L20 0 L30 3 L40 0 L50 2 L60 0 L70 3 L80 0 L90 2 L100 0 L100 20 L90 18 L80 20 L70 17 L60 20 L50 18 L40 20 L30 17 L20 20 L10 18 L0 20 Z' fill='black'/%3E%3C/svg%3E");
+  transform: rotate(-2deg);
+}
+
+/* Mood Slider Handle */
+.mood-handle {
+  transition: all 0.2s ease;
+}
+
+.mood-handle:active {
+  transform: scale(1.2) translateX(-50%);
+}
+
+/* Global Styles */
+:root {
+  color-scheme: light;
+  color: rgba(0, 0, 0, 0.87);
+  background-color: #fdfdfb;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "PingFang SC", "Lantinghei SC", "Microsoft YaHei", sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+}
