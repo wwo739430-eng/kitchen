@@ -17,13 +17,33 @@ export default function ScanReceipt() {
 
   useEffect(() => { startCamera(); return () => stopCamera(); }, []);
 
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
   async function startCamera() {
+    // 先检查浏览器是否支持 getUserMedia
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('你的浏览器不支持摄像头功能，请使用"上传图片"代替');
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); setStreamActive(true); }
-    } catch (e) {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); setStreamActive(true); setCameraError(null); }
+    } catch (e: any) {
       console.error('摄像头无法访问', e);
       setStreamActive(false);
+      if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+        setCameraError('未检测到摄像头设备，请使用"上传图片"功能');
+      } else if (e.name === 'NotAllowedError' || e.name == 'PermissionDeniedError') {
+        setCameraError('摄像头权限被拒绝，请在浏览器地址栏左侧点击🔒图标允许摄像头访问');
+      } else {
+        setCameraError(`摄像头无法访问：${e.message || '未知错误'}，请使用"上传图片"代替`);
+      }
     }
   }
   function stopCamera() {
@@ -54,6 +74,7 @@ export default function ScanReceipt() {
     setLoading(true); setOcrText(''); setLines([]); setProgress(null);
 
     // CLIENT OCR: try Tesseract.recognize (simpler, avoids explicit initialize)
+    // 优先使用中文识别（chi_sim），因为小票通常是中文
     try {
       const options = {
         logger: (m: any) => {
@@ -62,12 +83,9 @@ export default function ScanReceipt() {
           }
           console.debug('tesslog', m);
         },
-        corePath: 'https://unpkg.com/tesseract.js-core@2.1.0/tesseract-core.wasm.js',
-        langPath: 'https://tessdata.projectnaptha.com/4.0.0'
       };
 
-      // Note: pass 'eng' for english; add 'chi_sim' if you have it available and want Chinese recognition.
-      const { data: { text } } = await Tesseract.recognize(src, 'eng', options);
+      const { data: { text } } = await Tesseract.recognize(src, 'chi_sim+eng', options);
 
       setOcrText(text || '');
       const detected = (text || '').split(/\r?\n/).map(s => s.trim()).filter(s => s.length > 1);
@@ -130,7 +148,14 @@ export default function ScanReceipt() {
 
         <div className="grid md:grid-cols-2 gap-6">
           <div className="bg-white p-4 rounded shadow">
-            {streamActive ? <video ref={videoRef} className="w-full rounded" /> : <div className="h-64 bg-gray-100 rounded flex items-center justify-center">摄像头不可用或被拒绝</div>}
+            {streamActive ? <video ref={videoRef} className="w-full rounded" autoPlay playsInline muted /> : (
+              <div className="h-64 bg-gray-100 rounded flex flex-col items-center justify-center gap-3 text-gray-500">
+                <span className="material-symbols-outlined text-5xl text-gray-300">videocam_off</span>
+                <div className="text-sm text-center px-4">
+                  {cameraError || '摄像头不可用或被拒绝'}
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 mt-3">
               <button onClick={takePhoto} className="px-4 py-2 bg-primary text-white rounded" disabled={!streamActive}>拍照识别</button>
               <label className="px-4 py-2 bg-gray-100 rounded cursor-pointer">

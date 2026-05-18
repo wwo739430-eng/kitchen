@@ -5,6 +5,97 @@
 import { useState } from 'react';
 import { recipeAPI, type Recipe, type Ingredient } from '../services/api';
 
+// ========== 食材 → 图标/emoji 映射 ==========
+const ingredientEmojiMap: Record<string, string> = {
+  // 蔬菜类
+  '西红柿': '🍅', '番茄': '🍅', '黄瓜': '🥒', '萝卜': '🥕', '胡萝卜': '🥕',
+  '土豆': '🥔', '洋葱': '🧅', '白菜': '🥬', '菠菜': '🥬', '生菜': '🥬',
+  '青椒': '🫑', '辣椒': '🌶️', '芹菜': '🌿', '韭菜': '🌿', '茄子': '🍆',
+  '南瓜': '🎃', '冬瓜': '🥒', '苦瓜': '🥒', '豆芽': '🌱', '玉米': '🌽',
+  '蘑菇': '🍄', '香菇': '🍄', '金针菇': '🍄',
+  // 肉蛋类
+  '鸡蛋': '🥚', '鸡肉': '🍗', '猪肉': '🥩', '牛肉': '🥩', '羊肉': '🥩',
+  '排骨': '🍖', '鱼': '🐟', '虾': '🦐', '蟹': '🦀', '虾仁': '🦐',
+  '香肠': '🌭', '培根': '🥓', '火腿': '🍖',
+  // 主食类
+  '米饭': '🍚', '面条': '🍜', '饺子': '🥟', '包子': '🥟', '馒头': '🍞',
+  '面包': '🍞', '年糕': '🍡', '米粉': '🍜', '意面': '🍝', '乌冬面': '🍜',
+  // 调料类
+  '大蒜': '🧄', '姜': '🫚', '葱': '🧅', '酱油': '🫗', '醋': '🫗',
+  '油': '🛢️', '盐': '🧂', '糖': '🍬', '料酒': '🍶', '蚝油': '🫗',
+  // 其他
+  '豆腐': '🧈', '豆浆': '🥛', '牛奶': '🥛', '奶酪': '🧀', '黄油': '🧈',
+  '海苔': '🍙', '寿司': '🍣', '紫菜': '🌊', '芝麻': '⚫', '花生': '🥜',
+};
+
+function getIngredientIcon(name: string): string {
+  for (const [key, emoji] of Object.entries(ingredientEmojiMap)) {
+    if (name.includes(key) || key.includes(name)) return emoji;
+  }
+  // 默认按类别返回
+  if (/肉|骨|排|腿|翅/.test(name)) return '🥩';
+  if (/菜|瓜|果|豆|菇|笋|椒|葱|姜|蒜|芹/.test(name)) return '🥬';
+  if (/蛋|奶|酪|油/.test(name)) return '🥚';
+  if (/米|面|粉|包|饺|饼|馒|面包|饭/.test(name)) return '🍚';
+  if (/鱼|虾|蟹|贝|海鲜/.test(name)) return '🐟';
+  if (/酱|醋|酒|盐|糖|油|粉|精/.test(name)) return '🫗';
+  return '🔸';
+}
+
+// ========== 食谱 → 图片映射 ==========
+const recipeImageMap: Record<string, { emoji: string; gradient: string }> = {
+  // 炒菜类
+  '炒': { emoji: '🍳', gradient: 'from-amber-100 to-orange-100' },
+  '番茄炒蛋': { emoji: '🍳', gradient: 'from-red-100 to-yellow-100' },
+  '西红柿炒鸡蛋': { emoji: '🍳', gradient: 'from-red-100 to-yellow-100' },
+  // 汤类
+  '汤': { emoji: '🍲', gradient: 'from-blue-50 to-cyan-50' },
+  '蛋花汤': { emoji: '🥣', gradient: 'from-yellow-50 to-orange-50' },
+  // 面条类
+  '面': { emoji: '🍜', gradient: 'from-yellow-100 to-amber-100' },
+  '面条': { emoji: '🍜', gradient: 'from-yellow-100 to-amber-100' },
+  '炒面': { emoji: '🍝', gradient: 'from-orange-100 to-red-50' },
+  '拌面': { emoji: '🍜', gradient: 'from-amber-100 to-yellow-100' },
+  // 米饭类
+  '饭': { emoji: '🍚', gradient: 'from-green-50 to-emerald-50' },
+  '盖浇饭': { emoji: '🍛', gradient: 'from-orange-50 to-red-50' },
+  '煲仔饭': { emoji: '🍲', gradient: 'from-amber-100 to-orange-100' },
+  '炒饭': { emoji: '🍳', gradient: 'from-yellow-100 to-amber-100' },
+  // 火锅/炖煮
+  '火锅': { emoji: '🫕', gradient: 'from-red-100 to-orange-100' },
+  '炖': { emoji: '🍲', gradient: 'from-orange-50 to-amber-50' },
+  '焖': { emoji: '🫕', gradient: 'from-amber-100 to-yellow-100' },
+  '煮': { emoji: '🫕', gradient: 'from-blue-50 to-purple-50' },
+  // 凉菜/沙拉
+  '凉拌': { emoji: '🥗', gradient: 'from-green-100 to-lime-50' },
+  '沙拉': { emoji: '🥗', gradient: 'from-green-50 to-emerald-50' },
+  // 煎烤
+  '煎': { emoji: '🥞', gradient: 'from-amber-50 to-yellow-50' },
+  '烤': { emoji: '🍖', gradient: 'from-orange-100 to-red-100' },
+  // 包点
+  '饺子': { emoji: '🥟', gradient: 'from-yellow-50 to-amber-50' },
+  '包': { emoji: '🥟', gradient: 'from-stone-100 to-amber-50' },
+  // 日式
+  '寿司': { emoji: '🍣', gradient: 'from-pink-50 to-red-50' },
+  '刺身': { emoji: '🍱', gradient: 'from-red-50 to-pink-50' },
+  // 西式
+  '意面': { emoji: '🍝', gradient: 'from-yellow-100 to-orange-100' },
+  '披萨': { emoji: '🍕', gradient: 'from-amber-100 to-yellow-100' },
+  '三明治': { emoji: '🥪', gradient: 'from-amber-50 to-orange-50' },
+  '汉堡': { emoji: '🍔', gradient: 'from-yellow-100 to-amber-100' },
+};
+
+function getRecipeImage(recipeName: string): { emoji: string; gradient: string } {
+  // 先精确匹配
+  if (recipeImageMap[recipeName]) return recipeImageMap[recipeName];
+  // 再模糊匹配关键字
+  for (const [key, value] of Object.entries(recipeImageMap)) {
+    if (recipeName.includes(key)) return value;
+  }
+  // 默认
+  return { emoji: '🍽️', gradient: 'from-primary/20 to-primary/30' };
+}
+
 export default function Home() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(false);
@@ -168,6 +259,7 @@ export default function Home() {
                   const rotations = ['-1deg', '2deg', '-0.5deg', '1.2deg', '-2deg', '1deg'];
                   const rotation = rotations[index % rotations.length];
                   const needCount = recipe.ingredients.filter((i) => i.status === '需补充').length;
+                  const recipeImg = getRecipeImage(recipe.name);
 
                   return (
                     <div
@@ -176,11 +268,29 @@ export default function Home() {
                       style={{ transform: `rotate(${rotation})` }}
                     >
                       <div className="washi-tape absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-5 z-10 opacity-80"></div>
-                      <div className="w-full aspect-[4/3] bg-gradient-to-br from-primary/20 to-primary/30 rounded-sm mb-5 shadow-inner flex items-center justify-center">
-                        <span className="text-6xl">🍽️</span>
+                      <div className={`w-full aspect-[4/3] bg-gradient-to-br ${recipeImg.gradient} rounded-sm mb-5 shadow-inner flex items-center justify-center`}>
+                        <span className="text-7xl drop-shadow-md">{recipeImg.emoji}</span>
                       </div>
                       <div className="space-y-3">
                         <p className="text-2xl font-black text-[#2c3327]">{recipe.name}</p>
+                        {/* 食材列表（带图标） */}
+                        {recipe.ingredients && recipe.ingredients.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {recipe.ingredients.map((ing, i) => (
+                              <span
+                                key={i}
+                                className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full ${
+                                  ing.status === '需补充'
+                                    ? 'bg-orange-50 text-orange-600 border border-orange-200'
+                                    : 'bg-green-50 text-green-600 border border-green-200'
+                                }`}
+                              >
+                                <span>{getIngredientIcon(ing.name)}</span>
+                                {ing.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex items-center gap-4 text-xs font-bold text-[#757b6f]">
                           <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-md">
                             <span className="material-symbols-outlined text-sm">stairs</span>
@@ -229,28 +339,17 @@ export default function Home() {
             <h4 className="font-black text-lg">缺少的食材</h4>
           </div>
           <ul className="space-y-4">
-            <li className="flex items-center justify-between text-sm bg-white dark:bg-zinc-800 p-4 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-orange-400 text-xl">
-                  sentiment_dissatisfied
-                </span>
-                <span className="font-bold">黄洋葱 (2个)</span>
-              </div>
-              <button className="bg-soft-pink text-pink-700 px-3 py-1 rounded-lg text-xs font-black hover:bg-soft-pink/80 transition-colors">
-                添加
-              </button>
-            </li>
-            <li className="flex items-center justify-between text-sm bg-white dark:bg-zinc-800 p-4 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-orange-400 text-xl">
-                  sentiment_dissatisfied
-                </span>
-                <span className="font-bold">寿司海苔 (1包)</span>
-              </div>
-              <button className="bg-soft-pink text-pink-700 px-3 py-1 rounded-lg text-xs font-black hover:bg-soft-pink/80 transition-colors">
-                添加
-              </button>
-            </li>
+            {recipes.flatMap(r => r.ingredients.filter((i) => i.status === '需补充')).slice(0, 4).map((ing, idx) => (
+              <li key={idx} className="flex items-center justify-between text-sm bg-white dark:bg-zinc-800 p-4 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{getIngredientIcon(ing.name)}</span>
+                  <span className="font-bold">{ing.name} ({ing.quantity || '适量'})</span>
+                </div>
+                <button className="bg-soft-pink text-pink-700 px-3 py-1 rounded-lg text-xs font-black hover:bg-soft-pink/80 transition-colors">
+                  添加
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
 
