@@ -55,7 +55,7 @@ export interface UserPreferences {
 // ==================== 后端 API 基础配置 ====================
 
 // 生产环境：Render 后端地址
-const API_BASE = 'https://smartcook-backend-zma9.onrender.com/api';
+const API_BASE = 'https://smartcook-backend-1-klzm.onrender.com/api';
 
 async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
