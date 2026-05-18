@@ -26,7 +26,8 @@ export default function Home() {
       setRecipes(result.recipes || []);
     } catch (error) {
       console.error('生成食谱失败:', error);
-      alert('生成食谱失败，请检查后端服务是否启动');
+      const msg = error instanceof Error ? error.message : String(error);
+      alert(`AI 生成失败：${msg}\n\n可能原因：\n1. API Key 未配置\n2. 网络连接问题\n3. DeepSeek 服务异常`);
     } finally {
       setLoading(false);
     }
