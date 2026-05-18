@@ -1,6 +1,6 @@
 /**
- * API Service - 纯前端版本
- * DeepSeek AI 直连 + localStorage 本地存储（无需后端）
+ * API Service - 后端对接版本
+ * 所有数据请求通过后端 API，用户偏好仍使用 localStorage
  */
 
 // ==================== 类型定义 ====================
@@ -17,11 +17,15 @@ export interface Ingredient {
 }
 
 export interface Recipe {
+  id?: number;
   name: string;
   description: string;
   difficulty: string;
   time: string;
   calories: string;
+  cuisine?: string;
+  taste?: string;
+  scenario?: string;
   ingredients: Array<{
     name: string;
     quantity: string;
@@ -48,271 +52,66 @@ export interface UserPreferences {
   cooking_time: 'quick' | 'normal' | 'leisure' | null;
 }
 
-// ==================== DeepSeek AI ====================
+// ==================== 后端 API 基础配置 ====================
 
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
-const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY || '';
+// 开发环境用 localhost，生产环境部署后替换为 Render 地址
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-async function callDeepSeek(prompt: string): Promise<string> {
-  if (!DEEPSEEK_API_KEY) {
-    throw new Error('请在 .env 文件中配置 VITE_DEEPSEEK_API_KEY');
-  }
-
-  const response = await fetch(DEEPSEEK_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.8,
-    }),
+async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${url}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
   });
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`DeepSeek API 错误: ${response.status} - ${err}`);
+    throw new Error(`API 错误: ${response.status} - ${err}`);
   }
 
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || '';
+  return response.json() as Promise<T>;
 }
 
-// ==================== LocalStorage 工具 ====================
+// ==================== 偏好 → 筛选条件 / 提示词 转换 ====================
 
-function lsGet<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
+function preferencesToFilters(preferences: UserPreferences): RecipeFilters {
+  const filters: RecipeFilters = {};
 
-function lsSet(key: string, value: unknown) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
-// ==================== 食谱 API ====================
-
-export const recipeAPI = {
-  generate: async (ingredients: Ingredient[], filters?: RecipeFilters, userPreferences?: UserPreferences): Promise<{ recipes: Recipe[] }> => {
-    const ingredientList = ingredients.map((i) => `${i.name}(${i.quantity})`).join('、');
-    const scenarioText = filters?.scenario ? `，场景偏好：${filters.scenario}` : '';
-    const prefText = userPreferences ? `\n${preferencesToPrompt(userPreferences)}` : '';
-
-    const prompt = `你是一个专业的中式家庭厨师 AI，请根据以下食材为用户推荐 3 道菜谱${scenarioText}${prefText}。
-
-可用食材：${ingredientList}
-
-要求：
-1. 每道菜必须主要使用上述食材
-2. 步骤简洁，适合家庭厨房
-3. 严格按照以下 JSON 格式返回，不要加任何 markdown 代码块或其他文字
-
-返回格式（纯 JSON 数组）：
-[
-  {
-    "name": "菜名",
-    "description": "一句话描述，15字以内",
-    "difficulty": "简单",
-    "time": "15分钟",
-    "calories": "约300卡",
-    "ingredients": [
-      {"name": "食材名", "quantity": "用量", "status": "已有"}
-    ],
-    "steps": ["步骤1", "步骤2", "步骤3"],
-    "tags": ["快手菜", "下饭"]
-  }
-]`;
-
-    const raw = await callDeepSeek(prompt);
-
-    let jsonStr = raw.trim();
-    const match = jsonStr.match(/$$[\s\S]*$$/);
-    if (match) jsonStr = match[0];
-
-    const recipes: Recipe[] = JSON.parse(jsonStr);
-
-    const history = lsGet<Recipe[]>('recipe_history', []);
-    history.unshift(...recipes);
-    lsSet('recipe_history', history.slice(0, 50));
-
-    return { recipes };
-  },
-
-  getHistory: async (limit = 20): Promise<{ recipes: Recipe[] }> => {
-    const history = lsGet<Recipe[]>('recipe_history', []);
-    return { recipes: history.slice(0, limit) };
-  },
-};
-
-// ==================== 食材 API ====================
-
-export const ingredientAPI = {
-  getAll: async (): Promise<{ ingredients: Ingredient[] }> => {
-    const ingredients = lsGet<Ingredient[]>('ingredients', []);
-    return { ingredients };
-  },
-
-  add: async (ingredient: Ingredient): Promise<Ingredient> => {
-    const ingredients = lsGet<Ingredient[]>('ingredients', []);
-    const newItem: Ingredient = {
-      ...ingredient,
-      id: Date.now(),
-      storage_location: ingredient.storage_location || 'fridge',
+  if (preferences.cuisine_style) {
+    const map: Record<string, string> = {
+      home: '中式',
+      sichuan: '中式',
+      cantonese: '中式',
+      jiangsu: '中式',
+      shandong: '中式',
+      zhejiang: '中式',
+      fujian: '中式',
+      anhui: '中式',
+      western: '西式',
     };
-    ingredients.push(newItem);
-    lsSet('ingredients', ingredients);
-    return newItem;
-  },
+    filters.cuisine = map[preferences.cuisine_style];
+  }
 
-  update: async (id: number, data: Partial<Ingredient>): Promise<Ingredient> => {
-    const ingredients = lsGet<Ingredient[]>('ingredients', []);
-    const idx = ingredients.findIndex((i) => i.id === id);
-    if (idx !== -1) {
-      ingredients[idx] = { ...ingredients[idx], ...data };
-      lsSet('ingredients', ingredients);
-      return ingredients[idx];
-    }
-    throw new Error('食材不存在');
-  },
-
-  delete: async (id: number): Promise<void> => {
-    const ingredients = lsGet<Ingredient[]>('ingredients', []);
-    lsSet('ingredients', ingredients.filter((i) => i.id !== id));
-  },
-};
-
-// ==================== 收藏 API ====================
-
-export interface FavoriteItem {
-  id: number;
-  recipe: Recipe;
-  group: string;
-  createdAt: string;
-}
-
-export const favoriteAPI = {
-  getAll: async (): Promise<{ favorites: FavoriteItem[] }> => {
-    return { favorites: lsGet<FavoriteItem[]>('favorites', []) };
-  },
-
-  add: async (recipe: Recipe, group = '默认分组'): Promise<FavoriteItem> => {
-    const favorites = lsGet<FavoriteItem[]>('favorites', []);
-    const newItem: FavoriteItem = {
-      id: Date.now(),
-      recipe,
-      group,
-      createdAt: new Date().toISOString(),
+  if (preferences.taste_preference) {
+    const map: Record<string, string> = {
+      light: '清淡',
+      heavy: '辣',
+      medium: '咸',
     };
-    favorites.unshift(newItem);
-    lsSet('favorites', favorites);
-    return newItem;
-  },
+    filters.taste = map[preferences.taste_preference];
+  }
 
-  delete: async (id: number): Promise<void> => {
-    const favorites = lsGet<FavoriteItem[]>('favorites', []);
-    lsSet('favorites', favorites.filter((f) => f.id !== id));
-  },
-};
+  if (preferences.cooking_time) {
+    const map: Record<string, string> = {
+      quick: '快手菜',
+      normal: '快手菜',
+      leisure: '硬菜',
+    };
+    filters.scenario = map[preferences.cooking_time];
+  }
 
-// ==================== 购物清单 API ====================
-
-export interface ShoppingItem {
-  id: number;
-  name: string;
-  quantity: string;
-  checked: boolean;
+  return filters;
 }
 
-export const shoppingListAPI = {
-  getAll: async (): Promise<{ items: ShoppingItem[] }> => {
-    return { items: lsGet<ShoppingItem[]>('shopping_list', []) };
-  },
-
-  generate: async (recipes: Recipe[]): Promise<{ items: ShoppingItem[] }> => {
-    const existing = lsGet<Ingredient[]>('ingredients', []).map((i) => i.name);
-
-    const allIngredients = recipes.flatMap((r) =>
-      r.ingredients
-        .filter((i) => i.status === '需补充' || !existing.includes(i.name))
-        .map((i) => ({ name: i.name, quantity: i.quantity }))
-    );
-
-    const merged: Record<string, string> = {};
-    for (const item of allIngredients) {
-      merged[item.name] = item.quantity;
-    }
-
-    const items: ShoppingItem[] = Object.entries(merged).map(([name, quantity], idx) => ({
-      id: Date.now() + idx,
-      name,
-      quantity,
-      checked: false,
-    }));
-
-    const existing_list = lsGet<ShoppingItem[]>('shopping_list', []);
-    lsSet('shopping_list', [...existing_list, ...items]);
-    return { items };
-  },
-
-  add: async (name: string, quantity: string): Promise<ShoppingItem> => {
-    const items = lsGet<ShoppingItem[]>('shopping_list', []);
-    const newItem: ShoppingItem = { id: Date.now(), name, quantity, checked: false };
-    items.push(newItem);
-    lsSet('shopping_list', items);
-    return newItem;
-  },
-
-  update: async (id: number, checked: boolean): Promise<ShoppingItem> => {
-    const items = lsGet<ShoppingItem[]>('shopping_list', []);
-    const idx = items.findIndex((i) => i.id === id);
-    if (idx !== -1) {
-      items[idx].checked = checked;
-      lsSet('shopping_list', items);
-      return items[idx];
-    }
-    throw new Error('清单项不存在');
-  },
-
-  delete: async (id: number): Promise<void> => {
-    const items = lsGet<ShoppingItem[]>('shopping_list', []);
-    lsSet('shopping_list', items.filter((i) => i.id !== id));
-  },
-};
-
-// ==================== 用户偏好 API ====================
-
-const DEFAULT_PREFERENCES: UserPreferences = {
-  taste_preference: null,
-  cuisine_style: null,
-  fitness_goal: null,
-  dietary_restrictions: [],
-  cooking_time: null,
-};
-
-export const preferencesAPI = {
-  get: async (): Promise<UserPreferences> => {
-    return lsGet<UserPreferences>('user_preferences', DEFAULT_PREFERENCES);
-  },
-
-  save: async (prefs: Partial<UserPreferences>): Promise<UserPreferences> => {
-    const current = await preferencesAPI.get();
-    const updated = { ...current, ...prefs };
-    lsSet('user_preferences', updated);
-    return updated;
-  },
-
-  reset: async (): Promise<UserPreferences> => {
-    lsSet('user_preferences', DEFAULT_PREFERENCES);
-    return DEFAULT_PREFERENCES;
-  },
-};
-
-// ==================== 偏好 → AI 提示词转换 ====================
 export function preferencesToPrompt(preferences: UserPreferences): string {
   const parts: string[] = [];
 
@@ -364,5 +163,212 @@ export function preferencesToPrompt(preferences: UserPreferences): string {
 
   return parts.length > 0 ? `用户偏好：${parts.join('；')}` : '';
 }
+
+// ==================== 食谱 API ====================
+
+export const recipeAPI = {
+  generate: async (ingredients: Ingredient[], filters?: RecipeFilters, userPreferences?: UserPreferences): Promise<{ recipes: Recipe[] }> => {
+    // 合并筛选条件：手动筛选 + 用户偏好自动转换
+    const mergedFilters: RecipeFilters & { user_preferences?: string } = { ...filters };
+
+    if (userPreferences) {
+      const prefFilters = preferencesToFilters(userPreferences);
+      // 手动筛选优先级更高
+      if (!mergedFilters.cuisine) mergedFilters.cuisine = prefFilters.cuisine;
+      if (!mergedFilters.taste) mergedFilters.taste = prefFilters.taste;
+      if (!mergedFilters.scenario) mergedFilters.scenario = prefFilters.scenario;
+
+      // 把详细偏好作为额外提示传给后端
+      const prefText = preferencesToPrompt(userPreferences);
+      if (prefText) mergedFilters.user_preferences = prefText;
+    }
+
+    const body = {
+      ingredients: ingredients.map((i) => ({
+        name: i.name,
+        quantity: i.quantity,
+        state: i.state || '新鲜',
+      })),
+      filters: mergedFilters,
+    };
+
+    const data = await apiRequest<{ success: boolean; recipes: Recipe[] }>('/recipes/generate', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    return { recipes: data.recipes };
+  },
+
+  getHistory: async (limit = 20): Promise<{ recipes: Recipe[] }> => {
+    const data = await apiRequest<{ success: boolean; history: Recipe[] }>(
+      `/recipes/history?limit=${limit}`
+    );
+    return { recipes: data.history };
+  },
+
+  getById: async (id: number): Promise<{ recipe: Recipe }> => {
+    const data = await apiRequest<{ success: boolean; recipe: Recipe }>(`/recipes/${id}`);
+    return { recipe: data.recipe };
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await apiRequest(`/recipes/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ==================== 食材 API ====================
+
+export const ingredientAPI = {
+  getAll: async (): Promise<{ ingredients: Ingredient[] }> => {
+    return apiRequest('/ingredients');
+  },
+
+  add: async (ingredient: Ingredient): Promise<Ingredient> => {
+    const data = await apiRequest<{ success: boolean; ingredient: Ingredient }>('/ingredients', {
+      method: 'POST',
+      body: JSON.stringify(ingredient),
+    });
+    return data.ingredient;
+  },
+
+  update: async (id: number, data: Partial<Ingredient>): Promise<Ingredient> => {
+    const result = await apiRequest<{ success: boolean; ingredient: Ingredient }>(
+      `/ingredients/${id}`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    );
+    return result.ingredient;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await apiRequest(`/ingredients/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ==================== 收藏 API ====================
+
+export interface FavoriteItem {
+  id: number;
+  recipe_id?: number;
+  recipe?: Recipe;
+  group?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export const favoriteAPI = {
+  getAll: async (): Promise<{ favorites: FavoriteItem[] }> => {
+    return apiRequest('/favorites');
+  },
+
+  add: async (recipeId: number, group?: string, notes?: string): Promise<FavoriteItem> => {
+    const data = await apiRequest<{ success: boolean; favorite: FavoriteItem }>('/favorites', {
+      method: 'POST',
+      body: JSON.stringify({ recipe_id: recipeId, group_id: null, notes: notes || '' }),
+    });
+    return data.favorite;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await apiRequest(`/favorites/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ==================== 购物清单 API ====================
+
+export interface ShoppingItem {
+  id: number;
+  ingredient_name: string;
+  quantity: string;
+  category: string;
+  is_purchased: boolean;
+}
+
+export const shoppingListAPI = {
+  getAll: async (): Promise<{ items: ShoppingItem[] }> => {
+    return apiRequest('/shopping-list');
+  },
+
+  add: async (name: string, quantity: string, category = '其他'): Promise<ShoppingItem> => {
+    const data = await apiRequest<{ success: boolean; item: ShoppingItem }>('/shopping-list', {
+      method: 'POST',
+      body: JSON.stringify({ ingredient_name: name, quantity, category }),
+    });
+    return data.item;
+  },
+
+  generate: async (recipeId: number): Promise<{ items: ShoppingItem[] }> => {
+    const data = await apiRequest<{ success: boolean; items: ShoppingItem[] }>('/shopping-list/generate', {
+      method: 'POST',
+      body: JSON.stringify({ recipe_id: recipeId }),
+    });
+    return { items: data.items };
+  },
+
+  update: async (id: number, data: Partial<ShoppingItem>): Promise<ShoppingItem> => {
+    const result = await apiRequest<{ success: boolean; item: ShoppingItem }>(
+      `/shopping-list/${id}`,
+      { method: 'PUT', body: JSON.stringify(data) }
+    );
+    return result.item;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await apiRequest(`/shopping-list/${id}`, { method: 'DELETE' });
+  },
+
+  markPurchased: async (id: number): Promise<ShoppingItem> => {
+    const result = await apiRequest<{ success: boolean; item: ShoppingItem }>(
+      `/shopping-list/${id}/purchase`,
+      { method: 'POST' }
+    );
+    return result.item;
+  },
+
+  clearPurchased: async (): Promise<void> => {
+    await apiRequest('/shopping-list/purchased', { method: 'DELETE' });
+  },
+};
+
+// ==================== 用户偏好 API（localStorage） ====================
+
+function lsGet<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function lsSet(key: string, value: unknown) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  taste_preference: null,
+  cuisine_style: null,
+  fitness_goal: null,
+  dietary_restrictions: [],
+  cooking_time: null,
+};
+
+export const preferencesAPI = {
+  get: async (): Promise<UserPreferences> => {
+    return lsGet<UserPreferences>('user_preferences', DEFAULT_PREFERENCES);
+  },
+
+  save: async (prefs: Partial<UserPreferences>): Promise<UserPreferences> => {
+    const current = await preferencesAPI.get();
+    const updated = { ...current, ...prefs };
+    lsSet('user_preferences', updated);
+    return updated;
+  },
+
+  reset: async (): Promise<UserPreferences> => {
+    lsSet('user_preferences', DEFAULT_PREFERENCES);
+    return DEFAULT_PREFERENCES;
+  },
+};
 
 export default {};

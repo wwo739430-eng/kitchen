@@ -118,7 +118,7 @@ export default function Home() {
     } catch (error) {
       console.error('生成食谱失败:', error);
       const msg = error instanceof Error ? error.message : String(error);
-      alert(`AI 生成失败：${msg}\n\n可能原因：\n1. API Key 未配置\n2. 网络连接问题\n3. DeepSeek 服务异常`);
+      alert(`AI 生成失败：${msg}\n\n可能原因：\n1. 后端服务未启动\n2. 网络连接问题\n3. AI 服务异常`);
     } finally {
       setLoading(false);
     }
