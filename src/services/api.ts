@@ -261,7 +261,7 @@ export const favoriteAPI = {
     return apiRequest('/favorites');
   },
 
-  add: async (recipeId: number, group?: string, notes?: string): Promise<FavoriteItem> => {
+  add: async (recipeId: number, _group?: string, notes?: string): Promise<FavoriteItem> => {
     const data = await apiRequest<{ success: boolean; favorite: FavoriteItem }>('/favorites', {
       method: 'POST',
       body: JSON.stringify({ recipe_id: recipeId, group_id: null, notes: notes || '' }),
