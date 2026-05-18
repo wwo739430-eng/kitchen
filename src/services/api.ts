@@ -177,4 +177,192 @@ export const ingredientAPI = {
       lsSet('ingredients', ingredients);
       return ingredients[idx];
     }
-    throw new Error('食材
+    throw new Error('食材不存在');
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const ingredients = lsGet<Ingredient[]>('ingredients', []);
+    lsSet('ingredients', ingredients.filter((i) => i.id !== id));
+  },
+};
+
+// ==================== 收藏 API ====================
+
+export interface FavoriteItem {
+  id: number;
+  recipe: Recipe;
+  group: string;
+  createdAt: string;
+}
+
+export const favoriteAPI = {
+  getAll: async (): Promise<{ favorites: FavoriteItem[] }> => {
+    return { favorites: lsGet<FavoriteItem[]>('favorites', []) };
+  },
+
+  add: async (recipe: Recipe, group = '默认分组'): Promise<FavoriteItem> => {
+    const favorites = lsGet<FavoriteItem[]>('favorites', []);
+    const newItem: FavoriteItem = {
+      id: Date.now(),
+      recipe,
+      group,
+      createdAt: new Date().toISOString(),
+    };
+    favorites.unshift(newItem);
+    lsSet('favorites', favorites);
+    return newItem;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const favorites = lsGet<FavoriteItem[]>('favorites', []);
+    lsSet('favorites', favorites.filter((f) => f.id !== id));
+  },
+};
+
+// ==================== 购物清单 API ====================
+
+export interface ShoppingItem {
+  id: number;
+  name: string;
+  quantity: string;
+  checked: boolean;
+}
+
+export const shoppingListAPI = {
+  getAll: async (): Promise<{ items: ShoppingItem[] }> => {
+    return { items: lsGet<ShoppingItem[]>('shopping_list', []) };
+  },
+
+  generate: async (recipes: Recipe[]): Promise<{ items: ShoppingItem[] }> => {
+    const existing = lsGet<Ingredient[]>('ingredients', []).map((i) => i.name);
+
+    const allIngredients = recipes.flatMap((r) =>
+      r.ingredients
+        .filter((i) => i.status === '需补充' || !existing.includes(i.name))
+        .map((i) => ({ name: i.name, quantity: i.quantity }))
+    );
+
+    const merged: Record<string, string> = {};
+    for (const item of allIngredients) {
+      merged[item.name] = item.quantity;
+    }
+
+    const items: ShoppingItem[] = Object.entries(merged).map(([name, quantity], idx) => ({
+      id: Date.now() + idx,
+      name,
+      quantity,
+      checked: false,
+    }));
+
+    const existing_list = lsGet<ShoppingItem[]>('shopping_list', []);
+    lsSet('shopping_list', [...existing_list, ...items]);
+    return { items };
+  },
+
+  add: async (name: string, quantity: string): Promise<ShoppingItem> => {
+    const items = lsGet<ShoppingItem[]>('shopping_list', []);
+    const newItem: ShoppingItem = { id: Date.now(), name, quantity, checked: false };
+    items.push(newItem);
+    lsSet('shopping_list', items);
+    return newItem;
+  },
+
+  update: async (id: number, checked: boolean): Promise<ShoppingItem> => {
+    const items = lsGet<ShoppingItem[]>('shopping_list', [];
+    const idx = items.findIndex((i) => i.id === id);
+    if (idx !== -1) {
+      items[idx].checked = checked;
+      lsSet('shopping_list', items);
+      return items[idx];
+    }
+    throw new Error('清单项不存在');
+  },
+
+  delete: async (id: number): Promise<void> => {
+    const items = lsGet<ShoppingItem[]>('shopping_list', []);
+    lsSet('shopping_list', items.filter((i) => i.id !== id));
+  },
+};
+
+// ==================== 用户偏好 API ====================
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  taste_preference: null,
+  cuisine_style: null,
+  fitness_goal: null,
+  dietary_restrictions: [],
+  cooking_time: null,
+};
+
+export const preferencesAPI = {
+  get: async (): Promise<UserPreferences> => {
+    return lsGet<UserPreferences>('user_preferences', DEFAULT_PREFERENCES);
+  },
+
+  save: async (prefs: Partial<UserPreferences>): Promise<UserPreferences> => {
+    const current = await preferencesAPI.get();
+    const updated = { ...current, ...prefs };
+    lsSet('user_preferences', updated);
+    return updated;
+  },
+
+  reset: async (): Promise<UserPreferences> => {
+    lsSet('user_preferences', DEFAULT_PREFERENCES);
+    return DEFAULT_PREFERENCES;
+  },
+};
+
+// ==================== 偏好 → AI 提示词转换 ====================
+export function preferencesToPrompt(preferences: UserPreferences): string {
+  const parts: string[] = [];
+
+  if (preferences.taste_preference) {
+    const tasteMap: Record<string, string> = {
+      light: '清淡少油少盐，健康饮食',
+      heavy: '重口味，可以多放调料、辣椒、酱油等',
+      medium: '正常家常味道',
+    };
+    parts.push(tasteMap[preferences.taste_preference]);
+  }
+
+  if (preferences.cuisine_style) {
+    const cuisineMap: Record<string, string> = {
+      home: '中式家常菜做法',
+      sichuan: '川菜风格，可以放辣椒花椒',
+      cantonese: '粤菜风格，清淡鲜美，注重食材本味',
+      jiangsu: '淮扬菜风格，精致细腻',
+      shandong: '鲁菜风格，咸鲜为主',
+      zhejiang: '浙菜风格，鲜嫩软滑',
+      fujian: '闽菜风格，鲜香清淡',
+      anhui: '徽菜风格，重油重色',
+      western: '西式做法',
+    };
+    parts.push(cuisineMap[preferences.cuisine_style]);
+  }
+
+  if (preferences.fitness_goal) {
+    const fitnessMap: Record<string, string> = {
+      fat_loss: '低卡低脂，适合减脂期（控制总热量在500卡以内），少油少糖高蛋白',
+      muscle_gain: '高蛋白饮食（每餐至少25g蛋白质），适量碳水，适合增肌期',
+      maintain: '营养均衡即可',
+    };
+    parts.push(fitnessMap[preferences.fitness_goal]);
+  }
+
+  if (preferences.cooking_time) {
+    const timeMap: Record<string, string> = {
+      quick: '快手菜，15分钟内完成',
+      normal: '正常时间，30分钟左右',
+      leisure: '可以慢慢做，60分钟以上也行',
+    };
+    parts.push(timeMap[preferences.cooking_time]);
+  }
+
+  if (preferences.dietary_restrictions.length > 0) {
+    parts.push(`饮食限制/忌口：${preferences.dietary_restrictions.join('、')}`);
+  }
+
+  return parts.length > 0 ? `用户偏好：${parts.join('；')}` : '';
+}
+
+export default {};
