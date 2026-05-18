@@ -16,7 +16,6 @@ export interface Ingredient {
   expiration_date?: string;
 }
 
-
 export interface Recipe {
   name: string;
   description: string;
@@ -37,6 +36,16 @@ export interface RecipeFilters {
   taste?: string;
   scenario?: string;
   skill?: string;
+}
+
+// ==================== 用户偏好 ====================
+
+export interface UserPreferences {
+  taste_preference: 'light' | 'heavy' | 'medium' | null;
+  cuisine_style: 'home' | 'sichuan' | 'cantonese' | 'jiangsu' | 'shandong' | 'zhejiang' | 'fujian' | 'anhui' | 'western' | null;
+  fitness_goal: 'fat_loss' | 'muscle_gain' | 'maintain' | null;
+  dietary_restrictions: string[];
+  cooking_time: 'quick' | 'normal' | 'leisure' | null;
 }
 
 // ==================== DeepSeek AI ====================
@@ -89,11 +98,12 @@ function lsSet(key: string, value: unknown) {
 // ==================== 食谱 API ====================
 
 export const recipeAPI = {
-  generate: async (ingredients: Ingredient[], filters?: RecipeFilters): Promise<{ recipes: Recipe[] }> => {
+  generate: async (ingredients: Ingredient[], filters?: RecipeFilters, userPreferences?: UserPreferences): Promise<{ recipes: Recipe[] }> => {
     const ingredientList = ingredients.map((i) => `${i.name}(${i.quantity})`).join('、');
     const scenarioText = filters?.scenario ? `，场景偏好：${filters.scenario}` : '';
+    const prefText = userPreferences ? `\n${preferencesToPrompt(userPreferences)}` : '';
 
-    const prompt = `你是一个专业的中式家庭厨师 AI，请根据以下食材为用户推荐 3 道菜谱${scenarioText}。
+    const prompt = `你是一个专业的中式家庭厨师 AI，请根据以下食材为用户推荐 3 道菜谱${scenarioText}${prefText}。
 
 可用食材：${ingredientList}
 
@@ -120,14 +130,12 @@ export const recipeAPI = {
 
     const raw = await callDeepSeek(prompt);
 
-    // 尝试提取 JSON
     let jsonStr = raw.trim();
-    const match = jsonStr.match(/\[[\s\S]*\]/);
+    const match = jsonStr.match(/$$[\s\S]*$$/);
     if (match) jsonStr = match[0];
 
     const recipes: Recipe[] = JSON.parse(jsonStr);
 
-    // 保存到历史
     const history = lsGet<Recipe[]>('recipe_history', []);
     history.unshift(...recipes);
     lsSet('recipe_history', history.slice(0, 50));
@@ -169,112 +177,4 @@ export const ingredientAPI = {
       lsSet('ingredients', ingredients);
       return ingredients[idx];
     }
-    throw new Error('食材不存在');
-  },
-
-  delete: async (id: number): Promise<void> => {
-    const ingredients = lsGet<Ingredient[]>('ingredients', []);
-    lsSet('ingredients', ingredients.filter((i) => i.id !== id));
-  },
-};
-
-// ==================== 收藏 API ====================
-
-export interface FavoriteItem {
-  id: number;
-  recipe: Recipe;
-  group: string;
-  createdAt: string;
-}
-
-export const favoriteAPI = {
-  getAll: async (): Promise<{ favorites: FavoriteItem[] }> => {
-    return { favorites: lsGet<FavoriteItem[]>('favorites', []) };
-  },
-
-  add: async (recipe: Recipe, group = '默认分组'): Promise<FavoriteItem> => {
-    const favorites = lsGet<FavoriteItem[]>('favorites', []);
-    const newItem: FavoriteItem = {
-      id: Date.now(),
-      recipe,
-      group,
-      createdAt: new Date().toISOString(),
-    };
-    favorites.unshift(newItem);
-    lsSet('favorites', favorites);
-    return newItem;
-  },
-
-  delete: async (id: number): Promise<void> => {
-    const favorites = lsGet<FavoriteItem[]>('favorites', []);
-    lsSet('favorites', favorites.filter((f) => f.id !== id));
-  },
-};
-
-// ==================== 购物清单 API ====================
-
-export interface ShoppingItem {
-  id: number;
-  name: string;
-  quantity: string;
-  checked: boolean;
-}
-
-export const shoppingListAPI = {
-  getAll: async (): Promise<{ items: ShoppingItem[] }> => {
-    return { items: lsGet<ShoppingItem[]>('shopping_list', []) };
-  },
-
-  generate: async (recipes: Recipe[]): Promise<{ items: ShoppingItem[] }> => {
-    const existing = lsGet<Ingredient[]>('ingredients', []).map((i) => i.name);
-
-    const allIngredients = recipes.flatMap((r) =>
-      r.ingredients
-        .filter((i) => i.status === '需补充' || !existing.includes(i.name))
-        .map((i) => ({ name: i.name, quantity: i.quantity }))
-    );
-
-    // 去重合并
-    const merged: Record<string, string> = {};
-    for (const item of allIngredients) {
-      merged[item.name] = item.quantity;
-    }
-
-    const items: ShoppingItem[] = Object.entries(merged).map(([name, quantity], idx) => ({
-      id: Date.now() + idx,
-      name,
-      quantity,
-      checked: false,
-    }));
-
-    const existing_list = lsGet<ShoppingItem[]>('shopping_list', []);
-    lsSet('shopping_list', [...existing_list, ...items]);
-    return { items };
-  },
-
-  add: async (name: string, quantity: string): Promise<ShoppingItem> => {
-    const items = lsGet<ShoppingItem[]>('shopping_list', []);
-    const newItem: ShoppingItem = { id: Date.now(), name, quantity, checked: false };
-    items.push(newItem);
-    lsSet('shopping_list', items);
-    return newItem;
-  },
-
-  update: async (id: number, checked: boolean): Promise<ShoppingItem> => {
-    const items = lsGet<ShoppingItem[]>('shopping_list', []);
-    const idx = items.findIndex((i) => i.id === id);
-    if (idx !== -1) {
-      items[idx].checked = checked;
-      lsSet('shopping_list', items);
-      return items[idx];
-    }
-    throw new Error('清单项不存在');
-  },
-
-  delete: async (id: number): Promise<void> => {
-    const items = lsGet<ShoppingItem[]>('shopping_list', []);
-    lsSet('shopping_list', items.filter((i) => i.id !== id));
-  },
-};
-
-export default {};
+    throw new Error('食材
