@@ -86,7 +86,7 @@ const COMMON_RESTRICTIONS = ['不吃辣', '不吃香菜', '不吃葱', '不吃�
 export default function Settings() {
   const [prefs, setPrefs] = useState<UserPreferences | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [_saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
   const [customRestriction, setCustomRestriction] = useState('');
 
@@ -381,7 +381,7 @@ export default function Settings() {
             <div className="mt-4 p-4 bg-red-50/50 rounded-xl">
               <p className="text-xs font-bold text-red-500 mb-2">当前限制：</p>
               <div className="flex flex-wrap gap-1.5">
-                {prefs.dietary_restrictions!.map((r) => (
+               {prefs.dietary_restrictions!.map((r: string) => (
                   <span
                     key={r}
                     onClick={() => toggleRestriction(r)}
