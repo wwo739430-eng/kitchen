@@ -268,7 +268,7 @@ export const shoppingListAPI = {
   },
 
   update: async (id: number, checked: boolean): Promise<ShoppingItem> => {
-    const items = lsGet<ShoppingItem[]>('shopping_list', [];
+    const items = lsGet<ShoppingItem[]>('shopping_list', []);
     const idx = items.findIndex((i) => i.id === id);
     if (idx !== -1) {
       items[idx].checked = checked;
