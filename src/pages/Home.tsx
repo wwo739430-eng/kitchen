@@ -26,7 +26,8 @@ export default function Home() {
       setRecipes(result.recipes || []);
     } catch (error) {
       console.error('生成食谱失败:', error);
-      alert('生成食谱失败，请检查后端服务是否启动');
+      alert(`AI 生成失败：${error instanceof Error ? error.message : '未知错误'}`);
+
     } finally {
       setLoading(false);
     }
