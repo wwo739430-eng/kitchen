@@ -13,7 +13,9 @@ export interface Ingredient {
   state?: string;
   storage_location?: 'fridge' | 'freezer' | 'pantry';
   image?: string;
+  expiration_date?: string;
 }
+
 
 export interface Recipe {
   name: string;
