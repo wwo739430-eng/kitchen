@@ -55,7 +55,8 @@ export interface UserPreferences {
 // ==================== 后端 API 基础配置 ====================
 
 // 开发环境用 localhost，生产环境部署后替换为 Render 地址
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE = 'https://smartcook-backend-1-klzm.onrender.com/api';
+
 
 async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
